@@ -271,8 +271,9 @@
         secondCard = null;
         lock=false;
 
-        cards.forEach(c=>c.classList.add('flipped'));
-        setTimeout(()=>cards.forEach(c=>c.classList.remove('flipped')), 800);
+        setTimeout(() => {
+  cards.forEach(c => c.classList.remove('flipped'));
+}, 800);
 
         stopTimer(); 
         timeEl.textContent='0s';
