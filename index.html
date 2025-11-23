@@ -45,22 +45,22 @@
     button{background:transparent;border:1px solid rgba(230,238,248,0.06);color:var(--accent);padding:6px 10px;border-radius:8px;cursor:pointer}
     .meta{display:flex;gap:12px;align-items:center;color:var(--muted);font-size:13px}
 
-    /* board */
     .board{
       display:grid;
       gap:12px;
       padding:12px;
       justify-items:center;
     }
-    /* grid sizes responsive */
+
     .board.size-4{grid-template-columns:repeat(4, minmax(80px,1fr));}
-    .board.size-6{grid-template-columns:repeat(6, minmax(64px,1fr));}
     .board.size-5{grid-template-columns:repeat(5, minmax(70px,1fr));}
+    .board.size-6{grid-template-columns:repeat(6, minmax(64px,1fr));}
 
     .card{
       width:100%;
       aspect-ratio: 1/1;
       perspective: 900px;
+      cursor:pointer;
     }
     .inner{
       position:relative;
@@ -78,15 +78,12 @@
     .face.front{background:linear-gradient(180deg,#0b1220,#0e1a2d);color:#cde3ff;border:1px solid rgba(255,255,255,0.03)}
     .face.back{background: linear-gradient(180deg,#fff,#f2f7ff);color:#0b1220;transform:rotateY(180deg);font-size:28px}
 
-    /* little pop when match */
     .matched .inner{animation:pop 420ms ease-out}
     @keyframes pop{0%{transform:scale(1) rotateY(180deg)}50%{transform:scale(1.06) rotateY(180deg)}100%{transform:scale(1) rotateY(180deg)}}
 
     .footer{display:flex;align-items:center;justify-content:space-between;margin-top:14px;color:var(--muted);font-size:13px}
-
     .hint{font-size:12px;color:var(--muted)}
 
-    /* small-screen tweaks */
     @media (max-width:520px){
       .board.size-4{grid-template-columns:repeat(4, minmax(56px,1fr));}
       .inner{border-radius:8px}
@@ -94,14 +91,13 @@
     }
 
     .overlay{
-      position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(0deg, rgba(2,6,23,0.6), rgba(2,6,23,0.6));
+      position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(2,6,23,0.6);
       visibility:hidden;opacity:0;transition:opacity .2s, visibility .2s;z-index:999;
     }
     .overlay.show{visibility:visible;opacity:1}
     .modal{background:#071129;padding:22px;border-radius:12px;border:1px solid rgba(255,255,255,0.04);max-width:420px;text-align:center}
     .modal h2{margin:0 0 8px 0}
     .modal p{color:var(--muted);margin:0 0 16px 0}
-
   </style>
 </head>
 <body>
@@ -145,7 +141,6 @@
   </div>
 
   <script>
-    // Simple memory game logic — single-file, no frameworks.
     (function(){
       const emojis = [
         '🍎','🍊','🍋','🍇','🍓','🍉','🍌','🍍',
@@ -167,10 +162,6 @@
       const playAgain = document.getElementById('playAgain');
       const closeModal = document.getElementById('closeModal');
 
-      let gridCols = 4; // default
-      let cols = 4;
-      let rows = 4; // implicit by options: we will always show 4 rows; sizeSelect value controls columns number
-
       let cards = [];
       let firstCard = null;
       let secondCard = null;
@@ -178,171 +169,168 @@
       let moves = 0;
       let found = 0;
       let totalPairs = 0;
-
       let timer = null;
       let seconds = 0;
 
-      // best score in localStorage
-      function getBestKey(cols){ return memory_best_${cols}x4; }
-      function saveBest(cols, time, moves){
+      function getBestKey(cols){ 
+        return `memory_best_${cols}x4`; 
+      }
+
+      function saveBest(cols,time,moves){
         const key = getBestKey(cols);
         const prev = localStorage.getItem(key);
         const value = JSON.stringify({time,moves});
         if(!prev){ localStorage.setItem(key,value); return; }
-        try{ const p = JSON.parse(prev);
-          // prefer lower moves, then lower time
-          if(moves < p.moves || (moves===p.moves && time < p.time)) localStorage.setItem(key,value);
-        }catch(e){ localStorage.setItem(key,value); }
+        try{
+          const p = JSON.parse(prev);
+          if(moves < p.moves || (moves===p.moves && time < p.time)) {
+            localStorage.setItem(key,value);
+          }
+        }catch(e){
+          localStorage.setItem(key,value);
+        }
       }
+
       function loadBest(cols){
         const key = getBestKey(cols);
         const prev = localStorage.getItem(key);
         if(!prev) return null;
-        try{ return JSON.parse(prev); }catch(e){ return null; }
+        try{return JSON.parse(prev);}catch(e){return null;}
       }
 
       function startTimer(){
         if(timer) clearInterval(timer);
-        seconds = 0; timeEl.textContent = '0s';
-        timer = setInterval(()=>{ seconds++; timeEl.textContent = seconds + 's'; },1000);
+        seconds = 0;
+        timeEl.textContent = '0s';
+        timer = setInterval(()=>{
+          seconds++;
+          timeEl.textContent = seconds + 's';
+        },1000);
       }
-      function stopTimer(){ if(timer) clearInterval(timer); timer=null; }
 
-      function shuffle(array){
-        for(let i = array.length -1; i>0; i--){
-          const j = Math.floor(Math.random()*(i+1));
-          [array[i],array[j]]=[array[j],array[i]];
-        }
-        return array;
+      function stopTimer(){
+        if(timer) clearInterval(timer);
+        timer = null;
       }
+
+      function shuffle(a){
+        for(let i=a.length-1;i>0;i--){
+          const j = Math.floor(Math.random()*(i+1));
+          [a[i],a[j]] = [a[j],a[i]];
+        }
+        return a;
+      }
+
       function buildDeck(cols){
-        // always 4 rows; columns define difficulty
-        const count = cols * 4; // must be even
-        const pairCount = Math.floor(count/2);
+        const count = cols * 4;
+        const pairCount = count / 2;
         totalPairs = pairCount;
         const pool = shuffle(emojis.slice());
         const selected = pool.slice(0,pairCount);
-        const deck = shuffle(selected.concat(selected));
-        return deck;
+        return shuffle(selected.concat(selected));
       }
 
       function renderBoard(cols){
         boardEl.className = 'board size-' + cols;
         boardEl.innerHTML = '';
-
+        
         const deck = buildDeck(cols);
         cards = deck.map((value, i)=>{
           const el = document.createElement('div');
           el.className = 'card';
           el.dataset.index = i;
           el.dataset.value = value;
-          el.innerHTML = 
+          el.innerHTML = `
             <div class="inner">
               <div class="face front">?</div>
               <div class="face back">${value}</div>
-            </div>;
+            </div>`;
           boardEl.appendChild(el);
           return el;
         });
 
-        // update counters
-        found = 0; moves = 0;
+        found = 0;
+        moves = 0;
         movesEl.textContent = moves;
         foundEl.textContent = found;
         totalEl.textContent = totalPairs;
 
-        // attach listeners
         cards.forEach(c=>c.addEventListener('click', onCardClick));
 
-        // reset state
-        firstCard = null; secondCard = null; lock=false;
+        firstCard = null;
+        secondCard = null;
+        lock = false;
 
-        // show for a short preview then hide
         cards.forEach(c=>c.classList.add('flipped'));
-        setTimeout(()=>cards.forEach(c=>c.classList.remove('flipped')), 800);
+        setTimeout(()=>cards.forEach(c=>c.classList.remove('flipped')),800);
 
-        // timer start when first click
-        stopTimer(); timeEl.textContent='0s';
+        stopTimer();
+        timeEl.textContent = '0s';
 
-        // show best
         const b = loadBest(cols);
-        if(b) bestEl.textContent = ${b.moves} moves · ${b.time}s;
-        else bestEl.textContent = '—';
+        bestEl.textContent = b ? `${b.moves} moves · ${b.time}s` : '—';
       }
 
       function onCardClick(e){
         const card = e.currentTarget;
         if(lock) return;
         if(card.classList.contains('matched')) return;
-        if(card===firstCard) return; // clicking same card
+        if(card === firstCard) return;
 
-        // start timer on first action
         if(!timer) startTimer();
 
-        // flip
         card.classList.add('flipped');
 
-        if(!firstCard){ firstCard = card; return; }
+        if(!firstCard){
+          firstCard = card;
+          return;
+        }
 
         secondCard = card;
         moves++;
         movesEl.textContent = moves;
         lock = true;
 
-        // check match
-        const a = firstCard.dataset.value;
-        const b = secondCard.dataset.value;
-        if(a === b){
-          // matched
-          setTimeout(()=>{
-            firstCard.classList.add('matched');
-            secondCard.classList.add('matched');
-            firstCard = null; secondCard = null; lock=false;
-            found++;
-            foundEl.textContent = found;
-            // win?
-            if(found === totalPairs){
-              stopTimer();
-              showWin();
-            }
-          }, 360);
-        }else{
-          // not match - flip back
+        const match = firstCard.dataset.value === secondCard.dataset.value;
+
+        if(match){
+          firstCard.classList.add('matched');
+          secondCard.classList.add('matched');
+          found++;
+          foundEl.textContent = found;
+          lock = false;
+          firstCard = null;
+          secondCard = null;
+
+          if(found === totalPairs){
+            stopTimer();
+            resultTitle.textContent = "You win!";
+            resultText.textContent = `Time — ${seconds}s · Moves — ${moves}`;
+            overlay.classList.add("show");
+            saveBest(parseInt(sizeSelect.value), seconds, moves);
+          }
+        } else {
           setTimeout(()=>{
             firstCard.classList.remove('flipped');
             secondCard.classList.remove('flipped');
-            firstCard = null; secondCard = null; lock=false;
-          }, 700);
+            firstCard = null;
+            secondCard = null;
+            lock = false;
+          },700);
         }
       }
 
-      function showWin(){
-        // save best if better
-        saveBest(cols, seconds, moves);
-        const b = loadBest(cols);
-        if(b) bestEl.textContent = ${b.moves} moves · ${b.time}s;
+      restartBtn.onclick = ()=>renderBoard(parseInt(sizeSelect.value));
+      sizeSelect.onchange = ()=>renderBoard(parseInt(sizeSelect.value));
+      playAgain.onclick = ()=>{
+        overlay.classList.remove("show");
+        renderBoard(parseInt(sizeSelect.value));
+      };
+      closeModal.onclick = ()=>overlay.classList.remove("show");
 
-        resultTitle.textContent = 'Level complete 🎉';
-        resultText.textContent = Time — ${seconds}s · Moves — ${moves};
-        overlay.classList.add('show');
-      }
-
-      // wire UI
-      restartBtn.addEventListener('click', ()=>{
-        renderBoard(cols);
-      });
-      sizeSelect.addEventListener('change', (e)=>{
-        cols = Number(e.target.value);
-        renderBoard(cols);
-      });
-      playAgain.addEventListener('click', ()=>{ overlay.classList.remove('show'); renderBoard(cols); });
-      closeModal.addEventListener('click', ()=>{ overlay.classList.remove('show'); });
-
-      // init
-      cols = Number(sizeSelect.value);
-      renderBoard(cols);
-
+      renderBoard(4);
     })();
   </script>
+
 </body>
 </html>
